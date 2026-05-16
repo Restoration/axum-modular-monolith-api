@@ -1,7 +1,7 @@
 mod handler;
-mod model;
-mod repository;
-mod usecase;
+pub mod model;
+pub mod repository;
+pub mod usecase;
 
 use axum::Router;
 use shared::AppState;

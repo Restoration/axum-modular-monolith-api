@@ -45,3 +45,66 @@ fn build_usecase(state: &AppState) -> Usecase {
     let repo = PgUserRepository::new(state.db.clone());
     UserUsecase::new(repo)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use http::Request;
+    use http_body_util::BodyExt;
+    use sqlx::postgres::PgPoolOptions;
+    use tower::ServiceExt;
+
+    fn test_app() -> Router {
+        let pool = PgPoolOptions::new()
+            .max_connections(1)
+            .connect_lazy("postgres://localhost/dummy")
+            .unwrap();
+        router().with_state(AppState::new(pool))
+    }
+
+    #[tokio::test]
+    async fn route_not_found_returns_404() {
+        let app = test_app();
+
+        let response = app
+            .oneshot(Request::get("/nonexistent").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), 404);
+    }
+
+    #[tokio::test]
+    async fn create_user_invalid_content_type_returns_415() {
+        let app = test_app();
+
+        let response = app
+            .oneshot(
+                Request::post("/users")
+                    .body(Body::from("not json"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), 415);
+    }
+
+    #[tokio::test]
+    async fn create_user_invalid_json_returns_422() {
+        let app = test_app();
+
+        let response = app
+            .oneshot(
+                Request::post("/users")
+                    .header("content-type", "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), 422);
+    }
+}
