@@ -1,9 +1,8 @@
-[package]
-name = "api"
-version = "0.1.0"
-edition = "2018"
-
-[dependencies]
-warp = "0.3"
-serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1", features = ["full"] }
+[workspace]
+resolver = "2"
+members = [
+    "crates/server",
+    "crates/shared",
+    "crates/modules/health",
+    "crates/modules/user",
+]

@@ -1,0 +1,10 @@
+[package]
+name = "module-user"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.8"
+serde = { version = "1", features = ["derive"] }
+shared = { path = "../../shared" }
+tokio = { version = "1", features = ["full"] }
