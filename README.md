@@ -1,22 +1,35 @@
 # rust-api
 
-Axum + Tokio によるモジュラーモノリス API。
+Axum + Tokio + PostgreSQL によるモジュラーモノリス API。
 
 ## 構成
 
 ```
 crates/
-├── server/          # エントリーポイント、ルーター統合
-├── shared/          # 共通型 (AppError, AppState)
+├── server/          # エントリーポイント、ルーター統合、マイグレーション
+├── shared/          # 共通型 (AppError, AppState, PgPool)
 └── modules/
     ├── health/      # GET /health
     └── user/        # User CRUD (handler → usecase → repository)
+migrations/          # SQLマイグレーション
 ```
 
 ## 起動
 
+### Docker Compose (推奨)
+
 ```sh
-cargo run -p server
+docker compose up --build
+```
+
+### ローカル開発
+
+```sh
+# PostgreSQLのみ起動
+docker compose up db -d
+
+# アプリ起動
+DATABASE_URL=postgres://app:app@localhost:5432/app cargo run -p server
 ```
 
 ## エンドポイント
@@ -36,6 +49,10 @@ curl -X POST http://localhost:8080/users \
   -H "Content-Type: application/json" \
   -d '{"name": "Charlie"}'
 ```
+
+## マイグレーション
+
+`migrations/` にSQLファイルを追加すると、サーバー起動時に自動適用されます。
 
 ## モジュール追加
 
