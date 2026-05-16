@@ -12,18 +12,18 @@ impl<R: UserRepository> UserUsecase<R> {
         Self { repository }
     }
 
-    pub fn list_users(&self) -> Result<Vec<User>, AppError> {
-        self.repository.find_all()
+    pub async fn list_users(&self) -> Result<Vec<User>, AppError> {
+        self.repository.find_all().await
     }
 
-    pub fn get_user(&self, id: u64) -> Result<User, AppError> {
-        self.repository.find_by_id(id)
+    pub async fn get_user(&self, id: i64) -> Result<User, AppError> {
+        self.repository.find_by_id(id).await
     }
 
-    pub fn create_user(&self, input: CreateUser) -> Result<User, AppError> {
+    pub async fn create_user(&self, input: CreateUser) -> Result<User, AppError> {
         if input.name.is_empty() {
             return Err(AppError::BadRequest("name must not be empty".into()));
         }
-        self.repository.create(input)
+        self.repository.create(input).await
     }
 }

@@ -1,53 +1,46 @@
 use crate::model::{CreateUser, User};
 use shared::AppError;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use sqlx::PgPool;
 
-pub trait UserRepository: Send + Sync {
-    fn find_all(&self) -> Result<Vec<User>, AppError>;
-    fn find_by_id(&self, id: u64) -> Result<User, AppError>;
-    fn create(&self, input: CreateUser) -> Result<User, AppError>;
+pub trait UserRepository: Send + Sync + Clone {
+    fn find_all(&self) -> impl std::future::Future<Output = Result<Vec<User>, AppError>> + Send;
+    fn find_by_id(&self, id: i64) -> impl std::future::Future<Output = Result<User, AppError>> + Send;
+    fn create(&self, input: CreateUser) -> impl std::future::Future<Output = Result<User, AppError>> + Send;
 }
 
 #[derive(Clone)]
-pub struct InMemoryUserRepository {
-    store: Arc<RwLock<Vec<User>>>,
-    next_id: Arc<AtomicU64>,
+pub struct PgUserRepository {
+    pool: PgPool,
 }
 
-impl InMemoryUserRepository {
-    pub fn new() -> Self {
-        let store = vec![
-            User { id: 1, name: "Alice".into() },
-            User { id: 2, name: "Bob".into() },
-        ];
-        Self {
-            store: Arc::new(RwLock::new(store)),
-            next_id: Arc::new(AtomicU64::new(3)),
-        }
+impl PgUserRepository {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
     }
 }
 
-impl UserRepository for InMemoryUserRepository {
-    fn find_all(&self) -> Result<Vec<User>, AppError> {
-        let store = self.store.read().map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(store.clone())
+impl UserRepository for PgUserRepository {
+    async fn find_all(&self) -> Result<Vec<User>, AppError> {
+        sqlx::query_as::<_, User>("SELECT id, name FROM users ORDER BY id")
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
     }
 
-    fn find_by_id(&self, id: u64) -> Result<User, AppError> {
-        let store = self.store.read().map_err(|e| AppError::Internal(e.to_string()))?;
-        store
-            .iter()
-            .find(|u| u.id == id)
-            .cloned()
+    async fn find_by_id(&self, id: i64) -> Result<User, AppError> {
+        sqlx::query_as::<_, User>("SELECT id, name FROM users WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound(format!("User with id {} not found", id)))
     }
 
-    fn create(&self, input: CreateUser) -> Result<User, AppError> {
-        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
-        let user = User { id, name: input.name };
-        let mut store = self.store.write().map_err(|e| AppError::Internal(e.to_string()))?;
-        store.push(user.clone());
-        Ok(user)
+    async fn create(&self, input: CreateUser) -> Result<User, AppError> {
+        sqlx::query_as::<_, User>("INSERT INTO users (name) VALUES ($1) RETURNING id, name")
+            .bind(&input.name)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
     }
 }

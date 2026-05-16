@@ -7,4 +7,5 @@ edition = "2021"
 axum = "0.8"
 serde = { version = "1", features = ["derive"] }
 shared = { path = "../../shared" }
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-native-tls", "postgres"] }
 tokio = { version = "1", features = ["full"] }
