@@ -52,15 +52,14 @@ fn build_usecase(state: &AppState) -> Usecase {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use axum::body::Body;
-    use axum::Router;
     use http::Request;
     use http_body_util::BodyExt;
-    use shared::AppState;
     use sqlx::postgres::PgPoolOptions;
     use tower::ServiceExt;
 
-    fn test_app() -> Router {
+    fn test_app() -> Router<()> {
         let pool = PgPoolOptions::new()
             .max_connections(1)
             .connect_lazy("postgres://localhost/dummy")
