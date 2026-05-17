@@ -12,8 +12,8 @@ impl<R: UserRepository> UserUsecase<R> {
         Self { repository }
     }
 
-    pub async fn list_users(&self) -> Result<Vec<User>, AppError> {
-        self.repository.find_all().await
+    pub async fn list_users(&self, limit: i64, offset: i64) -> Result<Vec<User>, AppError> {
+        self.repository.find_all(limit, offset).await
     }
 
     pub async fn get_user(&self, id: i64) -> Result<User, AppError> {
@@ -21,16 +21,21 @@ impl<R: UserRepository> UserUsecase<R> {
     }
 
     pub async fn create_user(&self, input: CreateUser) -> Result<User, AppError> {
-        if input.name.is_empty() {
+        let name = input.name.trim().to_string();
+        if name.is_empty() {
             return Err(AppError::BadRequest("name must not be empty".into()));
         }
-        self.repository.create(input).await
+        if name.len() > 255 {
+            return Err(AppError::BadRequest("name must be 255 characters or less".into()));
+        }
+        self.repository.create(CreateUser { name }).await
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
     use std::sync::{Arc, Mutex};
 
     #[derive(Clone)]
@@ -47,8 +52,9 @@ mod tests {
     }
 
     impl UserRepository for MockUserRepository {
-        async fn find_all(&self) -> Result<Vec<User>, AppError> {
-            Ok(self.users.lock().unwrap().clone())
+        async fn find_all(&self, limit: i64, offset: i64) -> Result<Vec<User>, AppError> {
+            let users = self.users.lock().unwrap();
+            Ok(users.iter().skip(offset as usize).take(limit as usize).cloned().collect())
         }
 
         async fn find_by_id(&self, id: i64) -> Result<User, AppError> {
@@ -67,6 +73,7 @@ mod tests {
             let user = User {
                 id,
                 name: input.name,
+                created_at: Utc::now(),
             };
             users.push(user.clone());
             Ok(user)
@@ -79,15 +86,15 @@ mod tests {
 
     fn sample_users() -> Vec<User> {
         vec![
-            User { id: 1, name: "Alice".into() },
-            User { id: 2, name: "Bob".into() },
+            User { id: 1, name: "Alice".into(), created_at: Utc::now() },
+            User { id: 2, name: "Bob".into(), created_at: Utc::now() },
         ]
     }
 
     #[tokio::test]
     async fn list_users_returns_all() {
         let usecase = setup(sample_users());
-        let users = usecase.list_users().await.unwrap();
+        let users = usecase.list_users(20, 0).await.unwrap();
         assert_eq!(users.len(), 2);
         assert_eq!(users[0].name, "Alice");
         assert_eq!(users[1].name, "Bob");
@@ -96,8 +103,20 @@ mod tests {
     #[tokio::test]
     async fn list_users_empty() {
         let usecase = setup(vec![]);
-        let users = usecase.list_users().await.unwrap();
+        let users = usecase.list_users(20, 0).await.unwrap();
         assert!(users.is_empty());
+    }
+
+    #[tokio::test]
+    async fn list_users_with_pagination() {
+        let usecase = setup(sample_users());
+        let users = usecase.list_users(1, 0).await.unwrap();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0].name, "Alice");
+
+        let users = usecase.list_users(1, 1).await.unwrap();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0].name, "Bob");
     }
 
     #[tokio::test]
@@ -133,5 +152,36 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, AppError::BadRequest(_)));
+    }
+
+    #[tokio::test]
+    async fn create_user_whitespace_only_rejected() {
+        let usecase = setup(vec![]);
+        let err = usecase
+            .create_user(CreateUser { name: "   ".into() })
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)));
+    }
+
+    #[tokio::test]
+    async fn create_user_too_long_name_rejected() {
+        let usecase = setup(vec![]);
+        let long_name = "a".repeat(256);
+        let err = usecase
+            .create_user(CreateUser { name: long_name })
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)));
+    }
+
+    #[tokio::test]
+    async fn create_user_trims_whitespace() {
+        let usecase = setup(vec![]);
+        let user = usecase
+            .create_user(CreateUser { name: "  Alice  ".into() })
+            .await
+            .unwrap();
+        assert_eq!(user.name, "Alice");
     }
 }

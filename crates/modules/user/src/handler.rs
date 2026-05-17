@@ -1,9 +1,10 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
 use shared::{AppError, AppState};
 
-use crate::model::CreateUser;
+use crate::model::{CreateUser, Pagination};
 use crate::repository::PgUserRepository;
 use crate::usecase::UserUsecase;
 
@@ -17,9 +18,12 @@ pub fn router() -> Router<AppState> {
 
 async fn list_users(
     State(state): State<AppState>,
+    Query(params): Query<Pagination>,
 ) -> Result<Json<Vec<crate::model::User>>, AppError> {
+    let limit = params.limit.unwrap_or(20).min(100);
+    let offset = params.offset.unwrap_or(0);
     let usecase = build_usecase(&state);
-    let users = usecase.list_users().await?;
+    let users = usecase.list_users(limit, offset).await?;
     Ok(Json(users))
 }
 
@@ -35,10 +39,10 @@ async fn get_user(
 async fn create_user(
     State(state): State<AppState>,
     Json(input): Json<CreateUser>,
-) -> Result<Json<crate::model::User>, AppError> {
+) -> Result<(StatusCode, Json<crate::model::User>), AppError> {
     let usecase = build_usecase(&state);
     let user = usecase.create_user(input).await?;
-    Ok(Json(user))
+    Ok((StatusCode::CREATED, Json(user)))
 }
 
 fn build_usecase(state: &AppState) -> Usecase {
@@ -48,10 +52,11 @@ fn build_usecase(state: &AppState) -> Usecase {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use axum::body::Body;
+    use axum::Router;
     use http::Request;
     use http_body_util::BodyExt;
+    use shared::AppState;
     use sqlx::postgres::PgPoolOptions;
     use tower::ServiceExt;
 
