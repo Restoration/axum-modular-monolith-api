@@ -25,7 +25,7 @@ impl<R: UserRepository> UserUsecase<R> {
         if name.is_empty() {
             return Err(AppError::BadRequest("name must not be empty".into()));
         }
-        if name.len() > 255 {
+        if name.chars().count() > 255 {
             return Err(AppError::BadRequest("name must be 255 characters or less".into()));
         }
         self.repository.create(CreateUser { name }).await

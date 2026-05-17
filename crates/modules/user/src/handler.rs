@@ -20,8 +20,8 @@ async fn list_users(
     State(state): State<AppState>,
     Query(params): Query<Pagination>,
 ) -> Result<Json<Vec<crate::model::User>>, AppError> {
-    let limit = params.limit.unwrap_or(20).min(100);
-    let offset = params.offset.unwrap_or(0);
+    let limit = params.limit.unwrap_or(20).clamp(1, 100);
+    let offset = params.offset.unwrap_or(0).max(0);
     let usecase = build_usecase(&state);
     let users = usecase.list_users(limit, offset).await?;
     Ok(Json(users))
@@ -78,6 +78,22 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), 404);
+    }
+
+    #[tokio::test]
+    async fn list_users_invalid_query_returns_422() {
+        let app = test_app();
+
+        let response = app
+            .oneshot(
+                Request::get("/users?limit=abc")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), 422);
     }
 
     #[tokio::test]
