@@ -2,13 +2,13 @@
 
 # Docker Compose
 up:
-	docker compose up --build
+	docker compose -f infrastructure/docker-compose.yml up --build
 
 down:
-	docker compose down
+	docker compose -f infrastructure/docker-compose.yml down
 
 db:
-	docker compose up db -d
+	docker compose -f infrastructure/docker-compose.yml up db -d
 
 # ローカル開発
 dev:

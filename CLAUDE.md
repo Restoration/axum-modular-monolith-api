@@ -27,6 +27,7 @@ crates/
 ├── shared/          # 共通型 (AppError, AppState, PgPool)
 └── modules/
     └── <module>/    # 各ドメインモジュール
+infrastructure/      # Dockerfile, docker-compose.yml
 migrations/          # SQLマイグレーション (サーバー起動時に自動適用)
 ```
 

@@ -16,7 +16,9 @@ services:
       retries: 5
 
   app:
-    build: .
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile
     environment:
       DATABASE_URL: postgres://app:app@db:5432/app
     ports:
